@@ -20,7 +20,7 @@ export default function CarList() {
           toast.error("You need to log in first!", {
             position: "bottom-right",
           });
-          router.push("/login");
+          router.replace("/login");
           return;
         }
         // fetch this in context app
