@@ -1,7 +1,8 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useContext } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { toast } from "react-toastify";
+import { UserContext } from "@/context/UserProvider"; // Adjust import path as needed
 
 export default function CarDetail() {
   const [loading, setLoading] = useState(true);
@@ -10,27 +11,37 @@ export default function CarDetail() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState("");
-  const [isEditing, setIsEditing] = useState(false); // New state variable
+  const [isEditing, setIsEditing] = useState(false);
+
   const { id } = useParams();
   const router = useRouter();
 
+  // Get removeCar and updateCar methods from context
+  const { removeCar, updateCar } = useContext(UserContext);
+
   useEffect(() => {
     const fetchCar = async () => {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`/api/cars/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        console.log("this is car indi data ", data);
-        setCar(data.car);
-        setTitle(data.car.title);
-        setDescription(data.car.description);
-        setTags(data.car.tags.join(", ")); // Join tags for input
-      } else {
-        toast.error("Failed to fetch car details");
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(`/api/cars/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setCar(data.car);
+          setTitle(data.car.title);
+          setDescription(data.car.description);
+          setTags(data.car.tags.join(", "));
+        } else {
+          toast.error("Failed to fetch car details");
+        }
+      } catch (error) {
+        console.error("Error fetching car:", error);
+        toast.error("An error occurred while fetching car details");
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchCar();
@@ -39,45 +50,71 @@ export default function CarDetail() {
   if (loading) return <div>Loading...</div>;
 
   const handleDelete = async () => {
-    const token = localStorage.getItem("token");
-    const res = await fetch(`/api/cars/${id}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    // Show confirmation dialog
+    const confirmDelete = window.confirm(
+      "Are you sure you want to delete this car?"
+    );
 
-    if (res.ok) {
-      toast.success("Car deleted successfully");
-      router.replace("/cars");
-    } else {
-      toast.error("Failed to delete car");
+    if (!confirmDelete) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/api/cars/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        // Remove car from context immediately
+        removeCar(id);
+
+        toast.success("Car deleted successfully");
+        router.replace("/cars");
+      } else {
+        const errorText = await res.text();
+        toast.error(`Failed to delete car: ${errorText}`);
+      }
+    } catch (error) {
+      console.error("Delete error:", error);
+      toast.error("An error occurred while deleting the car");
     }
   };
 
   const handleUpdate = async () => {
-    const token = localStorage.getItem("token");
-    const res = await fetch(`/api/cars/${id}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        title,
-        description,
-        tags: tags.split(",").map((tag) => tag.trim()),
-        images: car.images, // Keep the existing images
-      }),
-    });
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/api/cars/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title,
+          description,
+          tags: tags.split(",").map((tag) => tag.trim()),
+          images: car.images, // Keep the existing images
+        }),
+      });
 
-    if (res.ok) {
-      toast.success("Car updated successfully");
-      setIsEditing(false); // Exit edit mode after saving
-      router.reload(); // Reload the page to reflect changes
-    } else {
-      toast.error("Failed to update car");
+      if (res.ok) {
+        const updatedCar = await res.json();
+
+        // Update car in context immediately
+        updateCar(updatedCar);
+
+        toast.success("Car updated successfully");
+        setIsEditing(false); // Exit edit mode after saving
+      } else {
+        const errorText = await res.text();
+        toast.error(`Failed to update car: ${errorText}`);
+      }
+    } catch (error) {
+      console.error("Update error:", error);
+      toast.error("An error occurred while updating the car");
     }
   };
-  console.log("this is car :", car.images);
+
   // Carousel functions
   const nextImage = () => {
     setCurrentImageIndex((prevIndex) => (prevIndex + 1) % car.images.length);
@@ -92,11 +129,11 @@ export default function CarDetail() {
   return (
     <div className="min-h-screen p-4 bg-gray-100">
       {car?.images?.length > 0 && (
-        <div className="relative w-full mt-10 mb-[20%]">
+        <div className="relative w-full mt-10 mb-[5%]">
           <img
             src={car.images[currentImageIndex]}
             alt="Car Image"
-            className="w-[50%] ml-[20%] h-auto text-black rounded shadow-md"
+            className="w-[30%] ml-[35%] h-[10%] text-black rounded shadow-md"
           />
           <div className="mt-10 flex justify-between">
             <button
@@ -107,52 +144,51 @@ export default function CarDetail() {
             </button>
             <button
               onClick={nextImage}
-              className=" bg-gray-800 text-white p-2 rounded"
+              className="bg-gray-800 text-white p-2 rounded"
             >
               Next
             </button>
           </div>
         </div>
       )}
+
       {/* Editable Car Title, Description, and Tags */}
       <div className="text-md text-gray-600 mb-4">
-        <strong className="focus:outline-none ">Title: </strong>
+        <strong className="focus:outline-none">Title: </strong>
         <input
           type="text"
-          className="text-xl font-semibold focus:outline-none  text-black mb-4 w-full  rounded p-2"
+          className="text-xl font-semibold focus:outline-none text-black mb-4 w-full rounded p-2"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          readOnly={!isEditing} // Make it read-only if not editing
+          readOnly={!isEditing}
         />
       </div>
 
       <div className="text-md text-gray-600 mb-4">
-        <strong className="focus:outline-none ">Description: </strong>
+        <strong className="focus:outline-none">Description: </strong>
         <textarea
-          className="text-md mb-2 w-full focus:outline-none  text-black rounded p-2"
+          className="text-md mb-2 w-full focus:outline-none text-black rounded p-2"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          readOnly={!isEditing} // Make it read-only if not editing
+          readOnly={!isEditing}
         />
       </div>
 
       <div className="text-md text-gray-600 mb-4">
-        <strong className="focus:outline-none flex ">Tags: </strong>
+        <strong className="focus:outline-none flex">Tags: </strong>
         <input
           type="text"
-          className="text-black focus:outline-none  rounded p-2"
+          className="text-black focus:outline-none rounded p-2 w-full"
           value={tags}
           onChange={(e) => setTags(e.target.value)}
-          readOnly={!isEditing} // Make it read-only if not editing
+          readOnly={!isEditing}
         />
       </div>
-
-      {/* Image Carousel */}
 
       {/* Edit and Save Buttons */}
       <div className="flex space-x-4 mb-4">
         <button
-          onClick={() => setIsEditing(!isEditing)} // Toggle edit mode
+          onClick={() => setIsEditing(!isEditing)}
           className={`${
             isEditing ? "bg-red-500" : "bg-blue-500"
           } text-white px-4 py-2 rounded`}

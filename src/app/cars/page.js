@@ -20,7 +20,7 @@ export default function CarList() {
           toast.error("You need to log in first!", {
             position: "bottom-right",
           });
-          router.replace("/login");
+          router.push("/login");
           return;
         }
         // fetch this in context app
@@ -29,9 +29,8 @@ export default function CarList() {
         toast.error("Something went wrong", { position: "bottom-right" });
       }
     };
-
     fetchCars();
-  }, [router]);
+  }, []);
 
   const filteredCars = cars.filter((car) => {
     const searchText = search.toLowerCase();
@@ -57,8 +56,8 @@ export default function CarList() {
           />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {cars.length > 0 ? (
-            cars.map((car) => <CarCard key={car._id} car={car} />)
+          {filteredCars.length > 0 ? (
+            filteredCars.map((car) => <CarCard key={car._id} car={car} />)
           ) : (
             <p className="text-center text-gray-500 col-span-full">
               No cars found.
